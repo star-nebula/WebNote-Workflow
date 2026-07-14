@@ -141,6 +141,8 @@ MIT
 
 ## English
 
+> *The section below is a brief summary. For the full documentation — detailed usage, directory structure, I/O formats, and confirmation boundaries — see the Chinese section above.*
+
 ### Overview
 
 WebNote-Workflow is a **trust-first** pipeline for turning saved web content into reliable personal notes. You save page text with existing tools, then hand the batch to four agents that run in sequence:
