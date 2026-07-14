@@ -130,7 +130,6 @@ WebNote-Workflow/
 
 ### 参考
 
-- 项目仓库：[github.com/star-nebula/WebNote-Workflow](https://github.com/star-nebula/WebNote-Workflow)
 - 设计参考：[Agent OS 的第一课：会分工，才会用 Agent](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)
 - 工具依赖：[BrowserSkill（腾讯开源）](https://github.com/Tencent/BrowserSkill)
 
@@ -174,7 +173,3 @@ Any delete / archive / publish / long-term-memory write stops at "pending confir
 ### License
 
 MIT
-
-### Project
-
-- Repository: [github.com/star-nebula/WebNote-Workflow](https://github.com/star-nebula/WebNote-Workflow)
