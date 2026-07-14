@@ -1,0 +1,12 @@
+# ===== 本地运行产出：不发布到云端 =====
+# 保留 runs/ 目录结构与 .gitkeep，但忽略所有实际运行内容
+runs/*
+!runs/.gitkeep
+
+# ===== 项目私有记忆 / Agent 数据 =====
+.workbuddy/
+
+# ===== 系统 / 编辑器杂项 =====
+.DS_Store
+Thumbs.db
+*.tmp
