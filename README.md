@@ -12,7 +12,9 @@
 
 WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**。它的目标不是帮你更快地生产，而是帮你**更可靠地把网页内容变成自己的知识**。
 
-你先用现成工具把网页正文存好，再把这批内容交给四个 Agent 接力处理：
+> 本项目在 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) 一文的理念启发下自行实现与改进，落地成一套可直接复用、按文件流水线运行的工作流。原文为付费 Newsletter，本仓库仅借鉴其"分工隔离 / 独立核查 / 确认闸门"三层设计思路，所有文档与提示词均为独立撰写。
+
+本工作流**只处理你已经存好的内容，本身不抓网页**。你先用任意现成工具把网页正文存好，再把这批内容交给四个 Agent 接力处理：
 
 1. **整理** —— 把存好的正文登记成清单，做初步分类
 2. **提炼** —— 从正文中提取结构化要点，写成个人笔记
@@ -56,7 +58,8 @@ WebNote-Workflow/
 ├── BrowserSkill Command Reference.md   # bsk CLI 命令速查
 ├── runs/                               # 每次运行的产出目录
 │   └── YYYY-MM-DD-主题/
-│       ├── content/                    # 你提供的原文（只读）
+│       ├── content/                    # 原文索引（记录标题+原文路径，非原文本体）
+│       │   └── index.md
 │       ├── 01-整理清单.md
 │       ├── 02-笔记.md
 │       ├── 03-核查表.md
@@ -67,13 +70,13 @@ WebNote-Workflow/
 
 ### 使用方法
 
-#### 0. 前置准备：存好正文 + 装好 BrowserSkill
+#### 0. 前置准备：先把正文存好（工具自选）
 
-正文**不让 AI 现去抓**——直接抓十有八九抓不全，付费墙和需登录的页更抓不到。用以下任一方式把正文存好：
+正文**由你自己存好，本工作流不去抓网页**——直接让 AI 现抓十有八九抓不全，付费墙和需登录的页更抓不到。**用哪种工具、用不用，完全由你决定**，以下任选其一即可：
 
-- **BrowserSkill**：腾讯开源的浏览器桥接，操控你已登录的浏览器读取页面（[安装指南](BrowserSkill%20Installation%20Guide.md)）
+- **手动复制粘贴**：最稳，零依赖
 - **Obsidian 网页剪藏 / 简悦 / Cubox / Readwise Reader** 等稍后读工具
-- **手动复制粘贴**：最稳的方式
+- **BrowserSkill（可选）**：腾讯开源的浏览器桥接，可操控你已登录的浏览器读取页面，适合需要登录态的批量抓取（[安装指南](BrowserSkill%20Installation%20Guide.md)）。**并非必需**，只是其中一种方式
 
 #### 1. 多 Agent 版（推荐，支持 subagent 的工具）
 
@@ -91,7 +94,9 @@ WebNote-Workflow/
 
 #### 3. 文件流水线（Claude Code / Codex / WorkBuddy）
 
-把四个 Agent 做成四个 subagent，按文件流水线跑：读取你提供的原文文件 → 写出 `runs/<本次子目录>/` 下的四个文件。每次运行一个子目录（`YYYY-MM-DD-主题`），多次运行互不覆盖，原文只读不改。
+把四个 Agent 做成四个 subagent，按文件流水线跑：读取你提供的原文文件 → 写出 `runs/<本次子目录>/` 下的四个文件。每次运行一个子目录（`YYYY-MM-DD-主题`），多次运行互不覆盖。
+
+**关于原文位置**：原文放在**你自己指定的位置**（例如你的剪藏库、笔记库目录），工作流**不复制、不移动、不修改**原文。子目录下的 `content/index.md` 只是一份**索引**，记录每篇原文的标题与所在绝对路径；核查时 Agent 按索引里的路径回到原文比对。原文始终只读。
 
 输入可用 JSON 格式引用原文路径（不复制）：
 
@@ -133,9 +138,10 @@ WebNote-Workflow/
 - 设计参考：[Agent OS 的第一课：会分工，才会用 Agent](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)
 - 工具依赖：[BrowserSkill（腾讯开源）](https://github.com/Tencent/BrowserSkill)
 
-### 许可证
+### 许可证与致谢
 
-MIT
+- 本仓库的文档与提示词采用 **MIT** 许可证，详见 [LICENSE](LICENSE)。你可自由使用、修改、再分发。
+- 设计理念致谢 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)。原文为付费内容，本项目仅借鉴其公开阐述的设计思路，未包含其原文正文或配套提示词包。
 
 ---
 
@@ -174,4 +180,4 @@ Any delete / archive / publish / long-term-memory write stops at "pending confir
 
 ### License
 
-MIT
+MIT — see [LICENSE](LICENSE). Design credit: [Axton Liu, "Agent OS 的第一课"](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) (ideas only; no original text reproduced).
