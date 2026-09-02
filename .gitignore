@@ -10,3 +10,13 @@ runs/*
 .DS_Store
 Thumbs.db
 *.tmp
+
+# ===== Python 编译缓存 =====
+__pycache__/
+*.py[cod]
+
+# ===== 密钥 / 环境变量：绝不进仓库 =====
+*.key
+*.env
+.env
+.secrets
