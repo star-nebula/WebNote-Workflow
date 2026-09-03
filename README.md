@@ -1,6 +1,6 @@
-# WebNote-Workflow · 网页笔记四步工作流
+# WebNote-Workflow · 网页笔记工作流
 
-> 把"存好正文 → 整理分类 → 提炼笔记 → 确认发布"拆成四个 Agent 分工协作。你丢给任何 AI 工具（WorkBuddy、Codex、Claude Code），它都能自动创建这四个 Agent 并完成任务。
+> 把"内容采集 → 整理分类 → 提炼笔记 → 确认发布"拆成**调度器（主会话） + 三个独立 Agent** 分工协作。确定性的事调度器（主会话）自己干，只有真正需要独立判断的才交给 subagent。
 
 [English](#english) · [中文文档](#中文文档)
 
@@ -14,31 +14,47 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 > 本项目在 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) 一文的理念启发下自行实现与改进，落地成一套可直接复用、按文件流水线运行的工作流。原文为付费 Newsletter，本仓库仅借鉴其"分工隔离 / 独立核查 / 确认闸门"三层设计思路，所有文档与提示词均为独立撰写。
 
-本工作流**只处理你已经存好的内容，本身不抓网页**。你先用任意现成工具把网页正文存好，再把这批内容交给四个 Agent 接力处理：
+### 架构
 
-1. **整理** —— 把存好的正文登记成清单，做初步分类
-2. **提炼** —— 从正文中提取结构化要点，写成个人笔记
-3. **核查** —— 拿笔记逐条回到原文比对，专抓 AI 编造的内容
-4. **确认** —— 汇总成"待确认提案"，你逐条点确认后才落地
+**不是每一步都需要独立的 AI 上下文。** 确定性的事调度器（主会话）自己干，只有真正需要独立判断的才交给 subagent：
 
-### 为什么是四步，而不是一步
+```
+调度器（主会话）
+├── 1. 采编（主会话自己做——URL 正则 + CLI 工具提取文本）
+│      → 产出 00-采编清单.md
+│
+├── 2. 归类师（独立 subagent——四选一语义分类）
+│      → 产出 01-整理清单.md
+│
+├── 3. 笔记匠（独立 subagent——提取 3~5 条核心要点）
+│      → 产出 02-笔记.md
+│
+├── 4. 核查官（全新 subagent——逐条比对原文 vs 笔记）
+│      → 产出 03-核查表.md
+│
+└── 5. 确认（主会话自己做——汇总提案，全部停在待确认）
+       → 产出 04-待确认提案.md
+```
 
-分工不是为了显得高级，是为了**隔离上下文、隔离责任、隔离风险**：
+**为什么有些步骤不是独立 Agent：**
 
-- 提炼的不能自己核查自己——它查不出自己刚才脑补了什么
-- 核查的不能替你删东西——它只标"可疑"，不替你决定
-- 确认的只出提案、不自动落地——最后那个确认键一直在你手里
-
-一个 Agent 从头干到尾，AI 编的内容你根本发现不了。四个 Agent 各管一段，每一段都有独立上下文，"想包庇自己都做不到"。
+| 步骤 | 是否独立 | 理由 |
+|------|---------|------|
+| 采编 | ❌ 主会话内化 | URL 分类用正则，文本提取调用 CLI 工具——确定性逻辑不需要 AI |
+| 归类师 | ✅ 独立 | 四选一分类需要理解正文语义，归类师的判断不应影响笔记匠 |
+| 笔记匠 | ✅ 独立 | 核心创作任务，需要完整上下文专注正文 |
+| 核查官 | ✅ **必须独立** | 安全闸门——笔记匠自己核查自己等于自检，查不出自己编了什么 |
+| 确认 | ❌ 主会话内化 | 不读原文、不做新判断，只是汇总 + 约束落地行为 |
 
 ### 功能说明
 
-| 阶段 | Agent | 输入 | 输出 | 关键约束 |
-|------|-------|------|------|---------|
-| 1 | 整理 | 已存好的网页（标题+网址+正文） | `01-整理清单.md`（清单 + 四选一分类） | 不抓网页、不脑补、只归类 |
-| 2 | 提炼 | 有正文的页面内容 | `02-笔记.md`（3–5 条要点 + 保留理由 + 修订建议） | 只依据正文，标注出处 |
-| 3 | 核查 | 原文 + 笔记 | `03-核查表.md`（已核实 / 可疑） | 必须独立 Agent，逐条比对 |
-| 4 | 确认 | 前三道产出 | `04-待确认提案.md`（建议动作） | 全部停在"待确认" |
+| 阶段 | 执行者 | 输入 | 输出 | 关键约束 |
+|------|--------|------|------|---------|
+| 采编 | 调度器（主会话） | 原始 URL + 已有正文 | `00-采编清单.md` | 正则分类 + CLI 工具，不依赖 AI |
+| 归类师 | subagent | 采编清单中有正文的内容 | `01-整理清单.md` | 只归类，不提炼 |
+| 笔记匠 | subagent | 整理清单中有正文的页面 | `02-笔记.md` | 只依据正文，标注出处 |
+| 核查官 | subagent（全新） | 原文 + 笔记 | `03-核查表.md` | **必须独立 Agent**，逐条比对 |
+| 确认 | 调度器（主会话） | 前四道产出 | `04-待确认提案.md` | 全部停在"待确认" |
 
 四选一分类：
 
@@ -51,19 +67,25 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 ```
 WebNote-Workflow/
-├── Webpage note workflow.md            # 工作流主文档（Agent 职责 / 输入输出 / 铁律）
-├── Prompt-Multi-Agent.md               # 多 Agent 版系统提示词（调度器）
+├── Webpage note workflow.md            # 工作流主文档（完整五步定义）
+├── Prompt-Multi-Agent.md               # 多 Agent 版系统提示词（主会话）
 ├── Prompt-Single-Dialog.md             # 单对话框版系统提示词（分段交付）
+├── tools/                              # 采编阶段的确定性工具
+│   ├── extract-document.py             # PDF/DOCX 文本提取
+│   ├── extract-webpage.py              # BrowserSkill 图文页面提取
+│   ├── extract-video-text.py           # BrowserSkill 视频页面提取
+│   ├── extract-video-asr.py            # 视频 ASR 语音转写（faster-whisper）
+│   ├── extract-video-frames.py         # 视频画面采集（抽帧+OCR+云端 Vision 语义）
+│   └── ds_vision.py                    # DeepSeek Vision 多图理解（被画面采集调用）
 ├── BrowserSkill Installation Guide.md  # BrowserSkill 安装指南
 ├── BrowserSkill Command Reference.md   # bsk CLI 命令速查
 ├── runs/                               # 每次运行的产出目录
 │   └── YYYY-MM-DD-主题/
-│       ├── content/                    # 原文索引（记录标题+原文路径，非原文本体）
-│       │   └── index.md
-│       ├── 01-整理清单.md
-│       ├── 02-笔记.md
-│       ├── 03-核查表.md
-│       └── 04-待确认提案.md
+│       ├── 00-采编清单.md               # 调度器（主会话）产出
+│       ├── 01-整理清单.md               # 归类师产出
+│       ├── 02-笔记.md                   # 笔记匠产出
+│       ├── 03-核查表.md                 # 核查官产出
+│       └── 04-待确认提案.md             # 调度器（主会话）产出
 ├── posts/                              # 可发布到博客平台的内容
 └── README.md
 ```
@@ -80,23 +102,24 @@ WebNote-Workflow/
 
 #### 1. 多 Agent 版（推荐，支持 subagent 的工具）
 
-把 [`Prompt-Multi-Agent.md`](Prompt-Multi-Agent.md) 作为系统提示，连同 [`Webpage note workflow.md`](Webpage%20note%20workflow.md) 一起提供给 AI（WorkBuddy / Codex / Claude Code）。AI 会按文档自动创建四个独立 subagent 并依次接力。
+把 [`Prompt-Multi-Agent.md`](Prompt-Multi-Agent.md) 作为系统提示，连同 [`Webpage note workflow.md`](Webpage%20note%20workflow.md) 一起提供给 AI（WorkBuddy / Codex / Claude Code）。AI 会按文档自动：
+- 调度器（主会话）执行采编（确定性逻辑）
+- 创建 3 个独立 subagent：归类师 → 笔记匠 → 核查官（全新上下文）
+- 调度器（主会话）执行确认（汇总提案）
 
 #### 2. 单对话框版（零门槛）
 
-把 [`Prompt-Single-Dialog.md`](Prompt-Single-Dialog.md) 作为系统提示。单个对话里 AI 自己提炼又自己核查等于自检，所以必须**分段交付**：
+把 [`Prompt-Single-Dialog.md`](Prompt-Single-Dialog.md) 作为系统提示。分三段交付：
 
-- 第一段：整理 + 提炼 → 停下
-- 第二段：新开对话，粘贴核查提示词 + 原文 + 笔记 → 产出核查表
-- 第三段：回到原对话，产出待确认提案
+- **第一段**：调度器（主会话）做采编 + 归类师 + 笔记匠 → 产出 00、01、02 → **停下**
+- **第二段**：新开对话，粘贴核查官提示词 + 原文 + 笔记 → 产出 03-核查表
+- **第三段**：调度器（主会话）汇总 00+01+02+03 → 产出 04-待确认提案
 
 > 核查必须换新对话，否则查不出自己编的内容。
 
-#### 3. 文件流水线（Claude Code / Codex / WorkBuddy）
+#### 3. 文件流水线
 
-把四个 Agent 做成四个 subagent，按文件流水线跑：读取你提供的原文文件 → 写出 `runs/<本次子目录>/` 下的四个文件。每次运行一个子目录（`YYYY-MM-DD-主题`），多次运行互不覆盖。
-
-**关于原文位置**：原文放在**你自己指定的位置**（例如你的剪藏库、笔记库目录），工作流**不复制、不移动、不修改**原文。子目录下的 `content/index.md` 只是一份**索引**，记录每篇原文的标题与所在绝对路径；核查时 Agent 按索引里的路径回到原文比对。原文始终只读。
+五个文件并列写入 `runs/<本次子目录>/`，调度器（主会话） + 3 个 subagent 接力。原文不复制、不移动，仅在清单中记录来源路径。多次运行互不覆盖。
 
 输入可用 JSON 格式引用原文路径（不复制）：
 
@@ -106,14 +129,14 @@ WebNote-Workflow/
     "id": "p01",
     "title": "某数据库年度报告",
     "domain": "example.org",
-    "url": "example.org/db-report-2026",
+    "url": "https://example.org/db-report-2026",
     "source_path": "E:/notes/webpages/db-report-2026.md"
   },
   {
     "id": "p02",
     "title": "上下文工程演讲",
     "domain": "youtube.com",
-    "url": "youtube.com/watch?v=xxxx",
+    "url": "https://youtube.com/watch?v=xxxx",
     "source_path": null
   }
 ]
@@ -121,15 +144,15 @@ WebNote-Workflow/
 
 `source_path` 为 `null` 即表示无正文。
 
-### 确认边界：什么 AI 能自动做，什么必须等你
+### 确认边界
 
-这套分工最重要的不是自动化，是**可控的自动化**。判断标准很简单：**这个动作如果错了，撤得回来吗？**
+AI 出提案，你按确认键。判断标准：**这个动作如果错了，撤得回来吗？**
 
-| 必须停在"待确认" | 可以让 AI 直接干 |
+| 必须停在"待确认" | 可以让调度器（主会话）直接干 |
 |------------------|------------------|
-| 删除 / 归档 / 移动资料 | 读、归类、提要点 |
-| 发布（文章 / 社交媒体） | 列清单、出提案 |
-| 改长期记忆 / 知识库 | 给建议、做对比、标可疑 |
+| 删除 / 归档 / 移动资料 | URL 正则分类、调用 CLI 工具 |
+| 发布（文章 / 社交媒体） | 读、归类、提要点 |
+| 改长期记忆 / 知识库 | 列清单、出提案、给建议 |
 
 **一句话：AI 可以无限地"想"和"建议"，但凡要"落地动手"，停在你这道闸前。**
 
@@ -151,22 +174,18 @@ WebNote-Workflow/
 
 ### Overview
 
-WebNote-Workflow is a **trust-first** pipeline for turning saved web content into reliable personal notes. You save page text with existing tools, then hand the batch to four agents that run in sequence:
+WebNote-Workflow is a **trust-first** pipeline for turning saved web content into reliable personal notes. It uses a hybrid architecture: deterministic tasks (media format classification, text extraction, confirmation) are handled by the scheduler itself, while only the tasks that truly need independent AI judgment are delegated to subagents.
 
-1. **Organize** — register saved pages into an inventory with a first-pass classification
-2. **Distill** — extract structured key points into personal notes
-3. **Verify** — check each note against the original text, catching AI fabrications
-4. **Confirm** — summarize into a "pending-confirmation proposal" you approve item by item
+```
+Scheduler (your AI tool)
+├── 1. Collection (scheduler itself — regex + CLI tools)
+├── 2. Classifier (subagent — semantic 4-way classification)
+├── 3. Distiller (subagent — extract key points)
+├── 4. Verifier (new subagent — compare notes against original)
+└── 5. Confirmation (scheduler itself — summarize proposal, all pending)
+```
 
-### Why four steps, not one
-
-The split exists for **context isolation, responsibility isolation, and risk isolation**:
-
-- The distiller cannot verify itself — it can't catch what it just hallucinated
-- The verifier cannot delete for you — it only flags "suspicious", it doesn't decide
-- The confirmer only proposes, never executes — the final confirm button stays with you
-
-Four agents, each with a clean context, simply cannot cover for themselves.
+Only **3 subagents** instead of 5 — the scheduler handles deterministic steps itself.
 
 ### Quick start
 
