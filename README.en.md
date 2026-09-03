@@ -54,4 +54,4 @@ Any delete / archive / publish / long-term-memory write stops at "pending confir
 
 ### License
 
-MIT — see [LICENSE](LICENSE). Design credit: [Axton Liu, "Agent OS 的第一课"](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) (ideas only; no original text reproduced).
+MIT — see [LICENSE](LICENSE). Design credit: [Axton Liu, "Agent OS 的第一课"](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division).

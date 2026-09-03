@@ -34,7 +34,7 @@
 
 WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**。它的目标不是帮你更快地生产，而是帮你**更可靠地把网页内容变成自己的知识**。
 
-> 本项目在 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) 一文的理念启发下自行实现与改进，落地成一套可直接复用、按文件流水线运行的工作流。原文为付费 Newsletter，本仓库仅借鉴其"分工隔离 / 独立核查 / 确认闸门"三层设计思路，所有文档与提示词均为独立撰写。
+> 本项目在 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) 一文的理念启发下自行实现与改进，落地成一套可直接复用、按文件流水线运行的工作流。本仓库仅借鉴其"分工隔离 / 独立核查 / 确认闸门"三层设计思路，所有文档与提示词均为独立撰写。
 
 ### 架构
 
@@ -105,8 +105,9 @@ WebNote-Workflow/
 │   ├── image-extract/                  # 图片内容提取（OCR 文字 + 画面语义）
 │   ├── video-extract/                  # 视频内容提取（语音 ASR + 画面文字/语义）
 │   └── xhs-note/                       # 小红书笔记流水线（拉取 + OCR + ASR → md）
-├── BrowserSkill Installation Guide.md  # BrowserSkill 安装指南
-├── BrowserSkill Command Reference.md   # bsk CLI 命令速查
+├── docs/                               # 外部工具与支撑文档
+│   ├── BrowserSkill Installation Guide.md  # BrowserSkill 安装指南
+│   └── BrowserSkill Command Reference.md   # bsk CLI 命令速查
 ├── posts/                              # 可发布到博客平台的内容
 ├── runs/                               # 每次运行的产出目录（内容被 .gitignore 忽略）
 │   └── YYYY-MM-DD-主题/
@@ -129,7 +130,7 @@ WebNote-Workflow/
 
 - **手动复制粘贴**：最稳，零依赖
 - **Obsidian 网页剪藏 / 简悦 / Cubox / Readwise Reader** 等稍后读工具
-- **BrowserSkill（可选）**：腾讯开源的浏览器桥接，可操控你已登录的浏览器读取页面，适合需要登录态的批量抓取（[安装指南](BrowserSkill%20Installation%20Guide.md)）。**并非必需**，只是其中一种方式
+- **BrowserSkill（可选）**：腾讯开源的浏览器桥接，可操控你已登录的浏览器读取页面，适合需要登录态的批量抓取（[安装指南](docs/BrowserSkill%20Installation%20Guide.md)）。**并非必需**，只是其中一种方式
 
 **可选：若要用视频画面采集**（教程/课程/录屏类视频，提取画面文字与语义），需额外准备：
 
@@ -198,6 +199,6 @@ AI 出提案，你按确认键。判断标准：**这个动作如果错了，撤
 ### 许可证与致谢
 
 - 本仓库的文档与提示词采用 **MIT** 许可证，详见 [LICENSE](LICENSE)。你可自由使用、修改、再分发。
-- 设计理念致谢 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)。原文为付费内容，本项目仅借鉴其公开阐述的设计思路，未包含其原文正文或配套提示词包。
+- 设计理念致谢 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)。
 
 ---
