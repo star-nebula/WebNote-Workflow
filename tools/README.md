@@ -36,6 +36,8 @@
 | `extract-webpage.py <URL>` | 通过 BrowserSkill 读取图文页面 | bsk CLI | 秒级 |
 | `extract-video-text.py <URL>` | 通过 BrowserSkill 读取视频页面文本 | bsk CLI | 秒级 |
 | `extract-video-asr.py <URL\|--input 本地文件> [--model small\|large-v3-turbo] [--max-duration N]` | 下载视频音频（或读本地文件）并用 ASR 转写语音 | yt-dlp, faster-whisper, ffmpeg | 分钟级 |
+| `extract-video-frames.py --input <本地视频> [--t-start S] [--t-end S] [--max-frames N]` | **视频画面采集**：抽帧 + 本地 RapidOCR 取逐字文字 + 云端 DeepSeek Vision 理解画面语义，按时间戳对齐 | ffmpeg, rapidocr-onnxruntime, DEEPSEEK_API_KEY | 分钟级 |
+| `ds_vision.py <图片...> [--times ...]` | 单批图片送 DeepSeek Vision 理解（被 extract-video-frames 内部调用，每 14 帧一批） | DEEPSEEK_API_KEY | 秒级 |
 | `extract-xhs.py <URL\|note_id>` | 拉取小红书笔记 + 图片/视频落盘（需 Cookie） | xhs, requests | 秒级 |
 | `extract-image-ocr.py --input <目录\|JSON>` | 对图片做本地 OCR（PaddleOCR PP-OCRv4） | paddleocr, paddlepaddle | 秒~分钟级 |
 | `run-xhs-note.py <URL\|note_id>` | 单条笔记流水线驱动：fetch→OCR→ASR→组装 Markdown | 上述三者 | 分钟级 |
@@ -81,6 +83,59 @@ python extract-video-asr.py <URL>
 - CPU 模式使用 int8 量化，无需 GPU
 - 输出为简体中文（通过 initial_prompt 引导）
 - 超过 `--max-duration` 的视频会跳过，避免长时间等待
+
+---
+
+## 画面采集工具说明（extract-video-frames.py）
+
+`extract-video-frames.py` 用于**画面含文字/语义信息**的视频（教程、课程、PPT 录屏、代码演示等）——这类视频的价值常在画面上（提示词原文、界面文字、操作步骤），ASR 语音转写覆盖不到。
+
+**工作流程**：
+
+```
+ffmpeg 抽帧（场景变化 + 每5秒定时兜底）
+  -> 本地 RapidOCR 逐帧提取逐字文字（管"准确文字"，纯本地不出机）
+  -> 云端 DeepSeek Vision 理解画面语义（管"画面在讲什么"，每 14 帧一批）
+  -> 按时间戳对齐 -> 统一 JSON + Markdown
+```
+
+**用法**：
+
+```bash
+# 环境变量提供 Key（绝不写进代码/git）
+export DEEPSEEK_API_KEY="sk-xxx"
+
+# 对视频 125s-325s 段做画面采集
+python extract-video-frames.py --input video.mp4 --t-start 125 --t-end 325
+
+# 整段 + 限制最多 30 帧
+python extract-video-frames.py --input video.mp4 --max-frames 30
+
+# 输出到文件
+python extract-video-frames.py --input video.mp4 --out result.json
+```
+
+**关键设计**：
+- **OCR 管文字 + Vision 管语义的分工**：RapidOCR 逐字提取（准确），DeepSeek Vision 理解界面/场景/阶段（语义）。两者互补——Vision 读小字可能错，OCR 认不出画面意思。
+- **每 14 帧一批送 Vision**：规避 48MiB 请求体上限与 ≥15 图时单边尺寸下降。
+- **防幻觉两个必留参数**：`reasoning_effort:none`（否则思考占满 max_tokens 正文返回空）、`detail:high`（`low` 压图诱发幻觉）。
+- **DeepSeek Vision 不支持视频**，只收图片（JPEG/PNG/GIF/WebP），因此"先抽帧再批量送图"是唯一路径。
+
+**依赖**：
+- ffmpeg（系统已装）
+- RapidOCR（建议独立 venv：`pip install rapidocr-onnxruntime`；若不在默认解释器，用 `--ocr-python <解释器路径>` 或环境变量 `OCR_PYTHON` 指定）
+- DeepSeek API Key（环境变量 `DEEPSEEK_API_KEY`）
+
+**输出 JSON 契约**（通用契约 + 扩展）：
+```json
+{"success": true, "text": "<Markdown>", "char_count": N,
+ "method": "video-frames-rapid+ds-vision", "error": null,
+ "frame_count": N, "per_frame": [{"file": "...", "t": 125.0, "ocr_text": "...", "vision_text": "..."}]}
+```
+
+**已知限制**：
+- 依赖网络（云端 Vision）与 DeepSeek API Key；Key 缺失或网络失败时整工具报错，可降级只用本地 OCR（文字仍可用，语义缺失）。
+- 图片会送云端（DeepSeek），敏感视频请评估后再用。
 
 ---
 
