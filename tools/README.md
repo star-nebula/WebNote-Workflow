@@ -164,7 +164,7 @@ run-xhs-note.py <URL>
 #    c. 命令行 --cookie "..."
 #
 # 1) 安装依赖
-pip install xhs requests rapidocr-onnxruntime   # OCR 用 RapidOCR（3.13 可用，无需特殊 venv）
+pip install xhs requests rapidocr-onnxruntime   # OCR 需含 rapidocr 的解释器（默认 3.13 无，建议独立 venv 并用 --ocr-python 指定）
 #    ASR 需 faster-whisper + ffmpeg（已有）
 
 # 2) 跑单条

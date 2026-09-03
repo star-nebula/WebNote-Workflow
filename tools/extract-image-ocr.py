@@ -11,7 +11,7 @@ Agent 0 · 采编 — 图片本地 OCR 工具（纯本地，无云端）
   python extract-image-ocr.py --images img1.png img2.png
 
 依赖：
-  pip install rapidocr-onnxruntime   # Python 3.13 可用，无需特殊 venv
+  pip install rapidocr-onnxruntime   # 需含 rapidocr 的解释器（默认 3.13 无，本机用 ocr venv）
 
 输出 JSON 到 stdout（通用契约 + 扩展）：
   {
@@ -65,6 +65,14 @@ def collect_images(args):
     return [], os.getcwd()
 
 
+def safe_relpath(path, base):
+    """跨盘安全的相对路径：同盘给相对路径，异盘退化为文件名（relpath 跨盘会抛 ValueError）。"""
+    try:
+        return os.path.relpath(path, base).replace('\\', '/')
+    except ValueError:
+        return os.path.basename(path)
+
+
 def main():
     parser = argparse.ArgumentParser(description='图片本地 OCR（RapidOCR）')
     parser.add_argument('--input', help='图片目录，或 extract-xhs.py 输出的 JSON 文件')
@@ -104,13 +112,14 @@ def main():
     per_image = []
     combined = []
     for img in image_paths:
-        rel = os.path.relpath(img, base_dir).replace('\\', '/')
         try:
+            rel = safe_relpath(img, base_dir)
             result, _ = ocr(img)
             lines = [item[1] for item in result] if result else []
             text = '\n'.join(l for l in lines if l and l.strip())
         except Exception as e:
-            log(f'OCR 失败 {rel}: {e}')
+            log(f'OCR 失败 {img}: {e}')
+            rel = safe_relpath(img, base_dir)
             text = ''
         per_image.append({'file': rel, 'text': text})
         if text:

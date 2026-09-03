@@ -45,7 +45,7 @@ python tools/extract-video-asr.py --input <video>        # 视频 ASR
 
 ```bash
 pip install xhs requests
-pip install rapidocr-onnxruntime   # OCR（3.13 可用，无需特殊 venv）
+pip install rapidocr-onnxruntime   # OCR：需含 rapidocr 的解释器（默认 3.13 无，建议独立 venv）
 # ASR: faster-whisper + ffmpeg（项目已有）
 ```
 

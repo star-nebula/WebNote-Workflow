@@ -28,9 +28,9 @@ def extract_pdf(filepath):
         full_text = '\n'.join(texts)
         return full_text, len(full_text.replace('\n', '')), 'pypdf'
     except ImportError:
-        return '', 0, 'error', 'pypdf 未安装，执行: pip install pypdf'
+        return 'pypdf 未安装，执行: pip install pypdf', 0, 'error'
     except Exception as e:
-        return '', 0, 'error', str(e)
+        return str(e), 0, 'error'
 
 
 def extract_docx(filepath):
@@ -45,9 +45,9 @@ def extract_docx(filepath):
         full_text = '\n'.join(texts)
         return full_text, len(full_text.replace('\n', '')), 'python-docx'
     except ImportError:
-        return '', 0, 'error', 'python-docx 未安装，执行: pip install python-docx'
+        return 'python-docx 未安装，执行: pip install python-docx', 0, 'error'
     except Exception as e:
-        return '', 0, 'error', str(e)
+        return str(e), 0, 'error'
 
 
 def main():

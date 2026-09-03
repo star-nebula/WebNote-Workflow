@@ -48,6 +48,15 @@ def log(msg, file=sys.stderr):
     print(f"[frames] {msg}", file=file)
 
 
+def summarize_ffmpeg_err(err, limit=400):
+    """
+    ffmpeg 的 stderr 开头是版本 banner，真正错误在末尾（如 Invalid argument）。
+    取末尾并折叠空白，避免 [:200] 截到 banner 上把真实错误吞掉。
+    """
+    s = " ".join(err.split())
+    return ("..." + s[-limit:]) if len(s) > limit else s
+
+
 def run(cmd, timeout=600):
     """执行命令，返回 (returncode, stdout, stderr)。"""
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -95,7 +104,7 @@ def extract_frames(video, out_dir, t_start=None, t_end=None, max_frames=None, pe
     log("抽周期帧...")
     rc, _, err = run(cmd2, timeout=600)
     if rc != 0:
-        log(f"周期抽帧警告: {err.strip()[:200]}")
+        log(f"周期抽帧警告: {summarize_ffmpeg_err(err)}")
 
     frames = []
     if os.path.isdir(per_dir):
@@ -123,7 +132,7 @@ def extract_frames(video, out_dir, t_start=None, t_end=None, max_frames=None, pe
     log("抽场景帧...")
     rc, _, err = run(cmd1, timeout=600)
     if rc != 0:
-        log(f"场景抽帧警告: {err.strip()[:200]}")
+        log(f"场景抽帧警告: {summarize_ffmpeg_err(err)}")
 
     if os.path.isdir(scene_dir):
         for fn in sorted(os.listdir(scene_dir)):
@@ -272,9 +281,19 @@ def main():
                 "error": f"视频文件不存在: {args.input}"}
         print(json.dumps(fail, ensure_ascii=False)); sys.exit(1)
 
-    # 确定 RapidOCR 解释器
+    # 确定 RapidOCR 解释器（优先级：--ocr-python > OCR_PYTHON > 当前解释器自带 > 本机遗留 venv）
     ocr_python = args.ocr_python or os.environ.get("OCR_PYTHON", "")
     if not ocr_python:
+        try:
+            subprocess.run(
+                [sys.executable, "-c", "import rapidocr_onnxruntime"],
+                capture_output=True, timeout=30, check=True,
+            )
+            ocr_python = sys.executable  # 当前解释器已装 RapidOCR，直接用（通用路径）
+        except Exception:
+            pass
+    if not ocr_python:
+        # 本机专用 venv 兜底（仅对本机有效，换机器请用 --ocr-python / OCR_PYTHON 指定）
         for cand in [r"C:\Users\stars\.workbuddy\binaries\python\envs\ocr\Scripts\python.exe"]:
             if os.path.isfile(cand):
                 ocr_python = cand
