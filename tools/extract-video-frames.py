@@ -207,7 +207,7 @@ def vision_all(frame_paths, ocr_python=None):
         times = [f"{t:.0f}s" for t, _ in batch]
         cmd = [
             sys.executable, os.path.join(TOOLS_DIR, "ds_vision.py"),
-        ] + paths + ["--times", ",".join(times)]
+        ] + paths + ["--times", ",".join(times), "--mode", "frames"]
         log(f"Vision 批次 {i // VISION_BATCH + 1}（{len(batch)} 帧）...")
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)

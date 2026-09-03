@@ -43,24 +43,35 @@ def b64(path):
         return base64.b64encode(f.read()).decode()
 
 
-def build_instruction(times=None, user_prompt=None):
-    """构造提示词。times: ["125s","145s",...] 与图片一一对应。"""
+def build_instruction(times=None, user_prompt=None, mode="image"):
+    """构造提示词。
+    mode="image"：普通图片（描述内容/场景/文字）
+    mode="frames"：视频抽帧（带时间戳，逐帧语义）
+    """
     if user_prompt:
         return user_prompt
-    times_hint = ""
-    if times:
-        times_hint = f"每张对应的真实时间戳依次是：{', '.join(times)}。"
+    if mode == "frames":
+        times_hint = ""
+        if times:
+            times_hint = f"每张对应的真实时间戳依次是：{', '.join(times)}。"
+        return (
+            f"下面按顺序给你若干张视频截图。{times_hint}\n"
+            "请逐张用中文回答，每张以【图N @ 真实时间戳】开头（时间戳用上面给的，不要自编）。\n"
+            "1) 这是什么界面/场景？\n2) 在做什么操作/处于什么阶段？\n"
+            "3) 抄录能看清的主要文字（看不清用[?]标注，不要编造）。\n"
+            "每张控制在100字内，简洁。"
+        )
+    # 默认：普通图片语义理解
     return (
-        f"下面按顺序给你若干张视频截图。{times_hint}\n"
-        "请逐张用中文回答，每张以【图N @ 真实时间戳】开头（时间戳用上面给的，不要自编）。\n"
-        "1) 这是什么界面/场景？\n2) 在做什么操作/处于什么阶段？\n"
-        "3) 抄录能看清的主要文字（看不清用[?]标注，不要编造）。\n"
+        "下面给你一张或多张图片。请逐张用中文回答，每张以【图N】开头：\n"
+        "1) 这是什么内容？什么场景/物体/界面？\n"
+        "2) 画面里主要有哪些文字（标题、按钮、提示词等），逐字抄录可看清的，看不清用[?]标注，不要编造。\n"
         "每张控制在100字内，简洁。"
     )
 
 
-def ask(api_key, image_paths, detail="high", times=None, user_prompt=None):
-    instruction = build_instruction(times, user_prompt)
+def ask(api_key, image_paths, detail="high", times=None, user_prompt=None, mode="image"):
+    instruction = build_instruction(times, user_prompt, mode)
     content = [{"type": "text", "text": instruction}]
     for p in image_paths:
         content.append({
@@ -97,10 +108,12 @@ def parse_vision_to_per_image(vision_text, image_paths, times):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("images", nargs="+", help="图片路径（视频抽帧）")
+    ap.add_argument("images", nargs="+", help="图片路径")
     ap.add_argument("--detail", default="high", choices=["low", "high", "original"])
-    ap.add_argument("--times", default=None, help="逗号分隔的时间戳，如 '125s,145s,160s'")
+    ap.add_argument("--times", default=None, help="逗号分隔的时间戳，如 '125s,145s,160s'（视频帧模式用）")
     ap.add_argument("--prompt", default=None)
+    ap.add_argument("--mode", default="image", choices=["image", "frames"],
+                    help="image=普通图片语义理解(默认)；frames=视频抽帧(带时间戳)")
     args = ap.parse_args()
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
@@ -116,11 +129,14 @@ def main():
     times = None
     if args.times:
         times = [t.strip() for t in args.times.split(",") if t.strip()]
+    if args.mode == "frames" and not times:
+        # frames 模式需时间戳；无则自动生成序号时间
+        times = [f"{i}s" for i in range(len(args.images))]
 
-    log(f"{len(args.images)} 张, detail={args.detail}, model={MODEL}")
+    log(f"{len(args.images)} 张, mode={args.mode}, detail={args.detail}, model={MODEL}")
     t0 = time.time()
     try:
-        r = ask(api_key, args.images, args.detail, times, args.prompt)
+        r = ask(api_key, args.images, args.detail, times, args.prompt, args.mode)
         msg = r["choices"][0]["message"]["content"] or ""
         usage = r.get("usage", {})
         per_image = parse_vision_to_per_image(msg, args.images, times or [""] * len(args.images))
@@ -128,7 +144,7 @@ def main():
             "success": True,
             "text": msg,
             "char_count": len(msg.replace("\n", "").replace(" ", "")),
-            "method": f"ds-vision-{MODEL}",
+            "method": f"ds-vision-{MODEL}-{args.mode}",
             "error": None,
             "usage": usage,
             "per_image": per_image,

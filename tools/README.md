@@ -39,7 +39,7 @@
 | `extract-video-frames.py --input <本地视频> [--t-start S] [--t-end S] [--max-frames N]` | **视频画面采集**：抽帧 + 本地 RapidOCR 取逐字文字 + 云端 DeepSeek Vision 理解画面语义，按时间戳对齐 | ffmpeg, rapidocr-onnxruntime, DEEPSEEK_API_KEY | 分钟级 |
 | `ds_vision.py <图片...> [--times ...]` | 单批图片送 DeepSeek Vision 理解（被 extract-video-frames 内部调用，每 14 帧一批） | DEEPSEEK_API_KEY | 秒级 |
 | `extract-xhs.py <URL\|note_id>` | 拉取小红书笔记 + 图片/视频落盘（需 Cookie） | xhs, requests | 秒级 |
-| `extract-image-ocr.py --input <目录\|JSON>` | 对图片做本地 OCR（PaddleOCR PP-OCRv4） | paddleocr, paddlepaddle | 秒~分钟级 |
+| `extract-image-ocr.py --input <目录\|JSON>` | 对图片做本地 OCR（RapidOCR，与视频画面采集统一后端） | rapidocr-onnxruntime | 秒~分钟级 |
 | `run-xhs-note.py <URL\|note_id>` | 单条笔记流水线驱动：fetch→OCR→ASR→组装 Markdown | 上述三者 | 分钟级 |
 
 ## ASR 工具说明
@@ -89,6 +89,8 @@ python extract-video-asr.py <URL>
 ## 画面采集工具说明（extract-video-frames.py）
 
 `extract-video-frames.py` 用于**画面含文字/语义信息**的视频（教程、课程、PPT 录屏、代码演示等）——这类视频的价值常在画面上（提示词原文、界面文字、操作步骤），ASR 语音转写覆盖不到。
+
+> 📌 配套 skill 见项目根 `skills/`：`video-extract/`（视频，本工具所在）、`image-extract/`（图片）、`xhs-note/`（小红书）。含触发判断、处理步骤、坑，接入 AI 时按内容类型加载对应 skill。
 
 **工作流程**：
 
@@ -148,7 +150,7 @@ python extract-video-frames.py --input video.mp4 --out result.json
 ```
 run-xhs-note.py <URL>
   ├─ 1. extract-xhs.py      拉取 note_card + 下载图片/视频到 <work_dir>/
-  ├─ 2. extract-image-ocr.py 对 images/ 做本地 OCR（PaddleOCR）
+  ├─ 2. extract-image-ocr.py 对 images/ 做本地 OCR（RapidOCR）
   ├─ 3. extract-video-asr.py --input <video> 对视频做本地 ASR（faster-whisper）
   └─ 4. 组装 <work_dir>/note.md（标题/描述/标签/逐图OCR/视频转写）
 ```
@@ -162,14 +164,11 @@ run-xhs-note.py <URL>
 #    c. 命令行 --cookie "..."
 #
 # 1) 安装依赖
-pip install xhs requests
-#    OCR 建议用 Python 3.11 虚拟环境（PaddlePaddle 暂未提供 3.13 wheel）：
-#    py -3.11 -m venv .venv-ocr && .venv-ocr\Scripts\activate && pip install paddleocr paddlepaddle
+pip install xhs requests rapidocr-onnxruntime   # OCR 用 RapidOCR（3.13 可用，无需特殊 venv）
 #    ASR 需 faster-whisper + ffmpeg（已有）
 
-# 2) 跑单条（驱动默认用同解释器跑 OCR/ASR；若 OCR 在 3.11 venv，用 --ocr-python 指定）
+# 2) 跑单条
 python run-xhs-note.py "https://www.xiaohongshu.com/explore/<note_id>" \
-  --ocr-python ".venv-ocr/Scripts/python.exe" \
   --asr-model large-v3-turbo
 ```
 

@@ -3,22 +3,22 @@
 Agent 0 · 采编 — 图片本地 OCR 工具（纯本地，无云端）
 
 对图片（小红书图文笔记下载的本地图片，或任意本地图片）做中文 OCR，
-使用 PaddleOCR PP-OCRv4，完全离线、数据不出本机。
+使用 RapidOCR（onnxruntime），完全离线、数据不出本机。
+与视频画面采集（extract-video-frames.py）共用同一套 RapidOCR 后端。
 
 用法：
   python extract-image-ocr.py --input <图片目录 | extract-xhs.py 的 JSON>
   python extract-image-ocr.py --images img1.png img2.png
 
-依赖（建议在 Python 3.11 虚拟环境安装，PaddlePaddle 暂未提供 3.13 wheel）：
-  pip install paddleocr paddlepaddle==3.0.0rc1   # CPU 版；或 paddlepaddle-gpu
-  # 注意：请用 Python 3.11 创建 venv 后安装，避免与项目其他 3.13 依赖冲突
+依赖：
+  pip install rapidocr-onnxruntime   # Python 3.13 可用，无需特殊 venv
 
 输出 JSON 到 stdout（通用契约 + 扩展）：
   {
     "success": true,
     "text": "<所有图片 OCR 文字合并>",
     "char_count": N,
-    "method": "paddleocr-ch",
+    "method": "rapidocr-ch",
     "error": null,
     "per_image": [{"file": "images/img_0.png", "text": "..."}, ...]
   }
@@ -66,7 +66,7 @@ def collect_images(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='图片本地 OCR（PaddleOCR）')
+    parser = argparse.ArgumentParser(description='图片本地 OCR（RapidOCR）')
     parser.add_argument('--input', help='图片目录，或 extract-xhs.py 输出的 JSON 文件')
     parser.add_argument('--images', nargs='+', help='一张或多张图片路径')
     args = parser.parse_args()
@@ -81,22 +81,22 @@ def main():
         sys.exit(1)
 
     try:
-        from paddleocr import PaddleOCR
+        from rapidocr_onnxruntime import RapidOCR
     except ImportError as e:
         out = {
             'success': False, 'text': '', 'char_count': 0, 'method': 'error',
-            'error': f'paddleocr 未安装（请使用 Python 3.11 venv: pip install paddleocr paddlepaddle）: {e}',
+            'error': f'rapidocr-onnxruntime 未安装: pip install rapidocr-onnxruntime。{e}',
         }
         print(json.dumps(out, ensure_ascii=False))
         sys.exit(1)
 
-    log(f'初始化 PaddleOCR（PP-OCRv4, lang=ch, CPU）... 首次会下载模型')
+    log(f'初始化 RapidOCR（CPU）... 首次会下载模型')
     try:
-        ocr = PaddleOCR(lang='ch', use_angle_cls=True, use_gpu=False)
+        ocr = RapidOCR()
     except Exception as e:
         out = {
             'success': False, 'text': '', 'char_count': 0, 'method': 'error',
-            'error': f'PaddleOCR 初始化失败: {e}',
+            'error': f'RapidOCR 初始化失败: {e}',
         }
         print(json.dumps(out, ensure_ascii=False))
         sys.exit(1)
@@ -106,18 +106,9 @@ def main():
     for img in image_paths:
         rel = os.path.relpath(img, base_dir).replace('\\', '/')
         try:
-            result = ocr.ocr(img, cls=True)
-            lines = []
-            if result:
-                for frame in result:
-                    if not frame:
-                        continue
-                    for line in frame:
-                        # line: [bbox, (text, score)]
-                        text = line[1][0] if isinstance(line[1], (list, tuple)) else line[1]
-                        if text and text.strip():
-                            lines.append(text.strip())
-            text = '\n'.join(lines)
+            result, _ = ocr(img)
+            lines = [item[1] for item in result] if result else []
+            text = '\n'.join(l for l in lines if l and l.strip())
         except Exception as e:
             log(f'OCR 失败 {rel}: {e}')
             text = ''
@@ -130,7 +121,7 @@ def main():
         'success': True,
         'text': full_text,
         'char_count': len(full_text.replace('\n', '').replace(' ', '')),
-        'method': 'paddleocr-ch',
+        'method': 'rapidocr-ch',
         'error': None,
         'per_image': per_image,
     }

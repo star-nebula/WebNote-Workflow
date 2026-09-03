@@ -4,13 +4,13 @@ Agent 0 · 采编 — 小红书单条笔记流水线驱动（纯本地，无云�
 
 串联三步，产出一份本地 Markdown 文档：
   1. extract-xhs.py        拉取笔记 + 下载图片/视频到本地
-  2. extract-image-ocr.py  对图片做本地 OCR（PaddleOCR）
+  2. extract-image-ocr.py  对图片做本地 OCR（RapidOCR）
   3. extract-video-asr.py  对视频做本地 ASR（faster-whisper）
 
 特点：
   - 纯本地离线，数据不出本机（唯一外部依赖是拉取用的小红书 Cookie）
   - 各步独立输出 JSON，本驱动只做编排与 Markdown 组装
-  - OCR / ASR 可指定不同的 Python 解释器（PaddlePaddle 建议 Python 3.11 venv）
+  - OCR / ASR 可指定不同的 Python 解释器（OCR 用 RapidOCR，3.13 可用）
 
 用法：
   python run-xhs-note.py <笔记URL或note_id> [--out <目录>] [--cookie <cookie>]
@@ -73,7 +73,7 @@ def build_markdown(fetch, ocr_text, asr_text):
 
     per_image = (ocr_text or {}).get('per_image') if isinstance(ocr_text, dict) else None
     if per_image:
-        lines.append('## 图片文字（OCR · 本地 PaddleOCR）')
+        lines.append('## 图片文字（OCR · 本地 RapidOCR）')
         lines.append('')
         for item in per_image:
             rel = item.get('file', '')
@@ -83,7 +83,7 @@ def build_markdown(fetch, ocr_text, asr_text):
             lines.append(txt if txt else '_(未识别到文字)_')
             lines.append('')
     elif fetch.get('images'):
-        lines.append('## 图片文字（OCR · 本地 PaddleOCR）')
+        lines.append('## 图片文字（OCR · 本地 RapidOCR）')
         lines.append('')
         lines.append('_(未执行 OCR 或识别为空)_')
         lines.append('')
@@ -105,7 +105,7 @@ def main():
     parser.add_argument('--asr-model', default='large-v3-turbo',
                         choices=['small', 'medium', 'large-v3', 'large-v3-turbo'])
     parser.add_argument('--ocr-python', default=sys.executable,
-                        help='运行 OCR 的 Python 解释器（默认同驱动；PaddlePaddle 建议 3.11 venv）')
+                        help='运行 OCR 的 Python 解释器（默认同驱动）')
     parser.add_argument('--asr-python', default=sys.executable,
                         help='运行 ASR 的 Python 解释器（默认同驱动）')
     parser.add_argument('--skip-ocr', action='store_true', help='跳过图片 OCR')
