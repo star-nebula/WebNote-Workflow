@@ -1,8 +1,30 @@
 # WebNote-Workflow · 网页笔记工作流
 
-> 把"内容采集 → 整理分类 → 提炼笔记 → 确认发布"拆成**调度器（主会话） + 三个独立 Agent** 分工协作。确定性的事调度器（主会话）自己干，只有真正需要独立判断的才交给 subagent。
+> 把"内容采集 → 整理分类 → 提炼笔记 → 确认发布"拆成**调度器（主会话） + 三个独立 Agent** 分工协作。确定性的事调度器（主会话）自己干（画面采集为可选 AI 增强），只有真正需要独立判断的才交给 subagent。
 
-[English](#english) · [中文文档](#中文文档)
+[English](README.en.md) · [中文文档](#目录结构)
+
+---
+
+## 快速开始：两条路径
+
+本项目以 **`skills/webnote-workflow`（总编排 skill）** 为 AI 入口——完整工作流（五步流程 + 视频画面采集 + 确认边界）的方法论都封装在其中。任选一条路径：
+
+**路径 A · 装配（推荐）**：把项目内 `skills/` 目录装进你的 AI 工具，之后**自然对话即触发**——直接说"把这个网页整理成笔记"，AI 自动加载 webnote-workflow skill 并按流程执行。
+
+- WorkBuddy / Codex / Claude Code：把 `<项目>/skills/` 链接或复制到该工具的项目级 skills 目录（如 `.workbuddy/skills/`、`.codex/skills/`、`.claude/skills/`）
+- 若工具不支持项目级 skill：退化为每次复制下方"路径 B"提示词
+
+**路径 B · 兜底（不装配也能用）**：把下面这段复制给你的 AI（WorkBuddy / Codex / Claude Code）：
+
+```
+你正在使用「WebNote-Workflow」网页笔记工作流，项目在 <当前项目目录>。
+先读取 skills/webnote-workflow/SKILL.md 获取编排与两种执行模式，再读取 Webpage note workflow.md 获取五步细则（均在项目内）。
+按其中流程处理我接下来给出的网页/本地内容：先做内容清单确认与前置检查（含 DEEPSEEK_API_KEY、Cookie），拿不准时问我。
+产出统一写入 runs/<日期-主题>/，所有删除/发布/改记忆类动作停在"待确认"。
+```
+
+> 分层说明：`webnote-workflow` 是**总编排 skill**（含多 Agent / 单对话框两种执行模式）；图片、视频、小红书三条内容提取链路分别由 `skills/image-extract`、`skills/video-extract`、`skills/xhs-note` 承载，采编时按内容类型加载。五步细则见 [Webpage note workflow.md](Webpage%20note%20workflow.md)。
 
 ---
 
@@ -16,7 +38,7 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 ### 架构
 
-**不是每一步都需要独立的 AI 上下文。** 确定性的事调度器（主会话）自己干，只有真正需要独立判断的才交给 subagent：
+**不是每一步都需要独立的 AI 上下文。** 确定性的事调度器（主会话）自己干（画面采集为可选 AI 增强），只有真正需要独立判断的才交给 subagent：
 
 ```
 调度器（主会话）
@@ -40,7 +62,7 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 | 步骤 | 是否独立 | 理由 |
 |------|---------|------|
-| 采编 | ❌ 主会话内化 | URL 分类用正则，文本提取调用 CLI 工具——确定性逻辑不需要 AI |
+| 采编 | ❌ 主会话内化 | URL 分类用正则，文本提取调用 CLI 工具——**默认确定性逻辑不需要 AI**（画面采集为可选 AI 增强，见下） |
 | 归类师 | ✅ 独立 | 四选一分类需要理解正文语义，归类师的判断不应影响笔记匠 |
 | 笔记匠 | ✅ 独立 | 核心创作任务，需要完整上下文专注正文 |
 | 核查官 | ✅ **必须独立** | 安全闸门——笔记匠自己核查自己等于自检，查不出自己编了什么 |
@@ -50,7 +72,7 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 | 阶段 | 执行者 | 输入 | 输出 | 关键约束 |
 |------|--------|------|------|---------|
-| 采编 | 调度器（主会话） | 原始 URL + 已有正文 | `00-采编清单.md` | 正则分类 + CLI 工具，不依赖 AI |
+| 采编 | 调度器（主会话） | 原始 URL + 已有正文 | `00-采编清单.md` | 正则分类 + CLI 工具，默认不依赖 AI；**画面采集（教程/录屏类视频）为可选 AI 增强** |
 | 归类师 | subagent | 采编清单中有正文的内容 | `01-整理清单.md` | 只归类，不提炼 |
 | 笔记匠 | subagent | 整理清单中有正文的页面 | `02-笔记.md` | 只依据正文，标注出处 |
 | 核查官 | subagent（全新） | 原文 + 笔记 | `03-核查表.md` | **必须独立 Agent**，逐条比对 |
@@ -67,27 +89,36 @@ WebNote-Workflow 是一套**以"可信"为核心的网页内容整理工作流**
 
 ```
 WebNote-Workflow/
-├── Webpage note workflow.md            # 工作流主文档（完整五步定义）
-├── Prompt-Multi-Agent.md               # 多 Agent 版系统提示词（主会话）
-├── Prompt-Single-Dialog.md             # 单对话框版系统提示词（分段交付）
-├── tools/                              # 采编阶段的确定性工具
+├── Webpage note workflow.md            # 工作流主文档（完整五步定义，被总 skill 引用）
+├── tools/                              # 采编阶段的工具（默认确定性 CLI；画面采集为可选 AI 增强）
 │   ├── extract-document.py             # PDF/DOCX 文本提取
 │   ├── extract-webpage.py              # BrowserSkill 图文页面提取
 │   ├── extract-video-text.py           # BrowserSkill 视频页面提取
 │   ├── extract-video-asr.py            # 视频 ASR 语音转写（faster-whisper）
-│   ├── extract-video-frames.py         # 视频画面采集（抽帧+OCR+云端 Vision 语义）
-│   └── ds_vision.py                    # DeepSeek Vision 多图理解（被画面采集调用）
+│   ├── extract-video-frames.py         # 视频画面采集（抽帧+本地OCR+云端 Vision 语义，需 Key）
+│   ├── ds_vision.py                    # DeepSeek Vision 多图理解（被画面采集调用）
+│   ├── extract-image-ocr.py            # 图片本地 OCR（RapidOCR，与视频画面采集统一）
+│   ├── extract-xhs.py                  # 小红书笔记拉取 + 图片/视频落盘（需 Cookie）
+│   └── run-xhs-note.py                 # 小红书单条笔记流水线驱动（fetch→OCR→ASR→Markdown）
+├── skills/                             # 项目内置的 AI skill（本项目的"能力库"）
+│   ├── webnote-workflow/               # ★ 总编排 skill（AI 入口：五步流程 + 两种执行模式）
+│   ├── image-extract/                  # 图片内容提取（OCR 文字 + 画面语义）
+│   ├── video-extract/                  # 视频内容提取（语音 ASR + 画面文字/语义）
+│   └── xhs-note/                       # 小红书笔记流水线（拉取 + OCR + ASR → md）
 ├── BrowserSkill Installation Guide.md  # BrowserSkill 安装指南
 ├── BrowserSkill Command Reference.md   # bsk CLI 命令速查
-├── runs/                               # 每次运行的产出目录
+├── posts/                              # 可发布到博客平台的内容
+├── runs/                               # 每次运行的产出目录（内容被 .gitignore 忽略）
 │   └── YYYY-MM-DD-主题/
 │       ├── 00-采编清单.md               # 调度器（主会话）产出
 │       ├── 01-整理清单.md               # 归类师产出
 │       ├── 02-笔记.md                   # 笔记匠产出
 │       ├── 03-核查表.md                 # 核查官产出
 │       └── 04-待确认提案.md             # 调度器（主会话）产出
-├── posts/                              # 可发布到博客平台的内容
-└── README.md
+├── LICENSE                             # MIT 许可证
+├── .gitignore                          # 忽略 runs/ 产出、密钥(.key/.env)、__pycache__
+├── README.md                            # 中文文档 + 快速开始（装配/兜底双路径）
+├── README.en.md                         # English documentation + quick start
 ```
 
 ### 使用方法
@@ -100,22 +131,25 @@ WebNote-Workflow/
 - **Obsidian 网页剪藏 / 简悦 / Cubox / Readwise Reader** 等稍后读工具
 - **BrowserSkill（可选）**：腾讯开源的浏览器桥接，可操控你已登录的浏览器读取页面，适合需要登录态的批量抓取（[安装指南](BrowserSkill%20Installation%20Guide.md)）。**并非必需**，只是其中一种方式
 
-#### 1. 多 Agent 版（推荐，支持 subagent 的工具）
+**可选：若要用视频画面采集**（教程/课程/录屏类视频，提取画面文字与语义），需额外准备：
 
-把 [`Prompt-Multi-Agent.md`](Prompt-Multi-Agent.md) 作为系统提示，连同 [`Webpage note workflow.md`](Webpage%20note%20workflow.md) 一起提供给 AI（WorkBuddy / Codex / Claude Code）。AI 会按文档自动：
-- 调度器（主会话）执行采编（确定性逻辑）
-- 创建 3 个独立 subagent：归类师 → 笔记匠 → 核查官（全新上下文）
-- 调度器（主会话）执行确认（汇总提案）
+```bash
+export DEEPSEEK_API_KEY="sk-xxx"   # 云端 DeepSeek Vision，绝不写进代码 / 提交 git
+```
 
-#### 2. 单对话框版（零门槛）
+该能力为**可选增强**：不用则整个工作流完全不依赖 AI 做采集（见"采编"说明）。仅画面采集涉及调用云端模型，其余提取均为本地/确定性工具。
 
-把 [`Prompt-Single-Dialog.md`](Prompt-Single-Dialog.md) 作为系统提示。分三段交付：
+#### 执行模式（两种，AI 按工具能力二选一）
 
-- **第一段**：调度器（主会话）做采编 + 归类师 + 笔记匠 → 产出 00、01、02 → **停下**
-- **第二段**：新开对话，粘贴核查官提示词 + 原文 + 笔记 → 产出 03-核查表
-- **第三段**：调度器（主会话）汇总 00+01+02+03 → 产出 04-待确认提案
+完整编排见 [`skills/webnote-workflow/SKILL.md`](skills/webnote-workflow/SKILL.md)，这里只列要点：
 
-> 核查必须换新对话，否则查不出自己编的内容。
+**模式 A · 多 Agent（工具支持 subagent 时，推荐）**：调度器（主会话）执行采编与确认，创建 3 个独立 subagent：
+- 归类师 → 四选一语义分类；笔记匠 → 每页 3~5 条核心要点；核查官（**全新上下文**）→ 逐条比对原文 vs 笔记
+- 核查官不能是笔记匠——自己查自己查不出编造内容
+
+**模式 B · 单对话框分段（无 subagent 能力时的降级）**：同对话完成采编 + 归类 + 提炼 → **停下**，要求用户把产物与原文带到**新对话**核查 → 核查表带回后确认。
+
+> 核查必须独立（新 subagent 或新对话），否则查不出自己编的内容。
 
 #### 3. 文件流水线
 
@@ -150,7 +184,7 @@ AI 出提案，你按确认键。判断标准：**这个动作如果错了，撤
 
 | 必须停在"待确认" | 可以让调度器（主会话）直接干 |
 |------------------|------------------|
-| 删除 / 归档 / 移动资料 | URL 正则分类、调用 CLI 工具 |
+| 删除 / 归档 / 移动资料 | URL 正则分类、调用 CLI 工具（含画面采集；其云端 Vision 调用为只读理解，非落地动作） |
 | 发布（文章 / 社交媒体） | 读、归类、提要点 |
 | 改长期记忆 / 知识库 | 列清单、出提案、给建议 |
 
@@ -167,36 +201,3 @@ AI 出提案，你按确认键。判断标准：**这个动作如果错了，撤
 - 设计理念致谢 [Axton Liu《Agent OS 的第一课：会分工，才会用 Agent》](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division)。原文为付费内容，本项目仅借鉴其公开阐述的设计思路，未包含其原文正文或配套提示词包。
 
 ---
-
-## English
-
-> *The section below is a brief summary. For the full documentation — detailed usage, directory structure, I/O formats, and confirmation boundaries — see the Chinese section above.*
-
-### Overview
-
-WebNote-Workflow is a **trust-first** pipeline for turning saved web content into reliable personal notes. It uses a hybrid architecture: deterministic tasks (media format classification, text extraction, confirmation) are handled by the scheduler itself, while only the tasks that truly need independent AI judgment are delegated to subagents.
-
-```
-Scheduler (your AI tool)
-├── 1. Collection (scheduler itself — regex + CLI tools)
-├── 2. Classifier (subagent — semantic 4-way classification)
-├── 3. Distiller (subagent — extract key points)
-├── 4. Verifier (new subagent — compare notes against original)
-└── 5. Confirmation (scheduler itself — summarize proposal, all pending)
-```
-
-Only **3 subagents** instead of 5 — the scheduler handles deterministic steps itself.
-
-### Quick start
-
-1. Save page text (BrowserSkill / clipper / copy-paste).
-2. Use [`Prompt-Multi-Agent.md`](Prompt-Multi-Agent.md) as the system prompt together with [`Webpage note workflow.md`](Webpage%20note%20workflow.md) for tools that support subagents.
-3. Or use [`Prompt-Single-Dialog.md`](Prompt-Single-Dialog.md) for a single-dialog, segment-by-segment flow.
-
-### Confirmation boundary
-
-Any delete / archive / publish / long-term-memory write stops at "pending confirmation" — the AI proposes, you press the button.
-
-### License
-
-MIT — see [LICENSE](LICENSE). Design credit: [Axton Liu, "Agent OS 的第一课"](https://www.axtonliu.ai/newsletters/ai-2/posts/agent-os-workstation-division) (ideas only; no original text reproduced).
