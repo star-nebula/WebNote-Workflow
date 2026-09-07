@@ -5,6 +5,7 @@ runs/*
 
 # ===== 项目私有记忆 / Agent 数据 =====
 .workbuddy/
+.memory/
 
 # ===== 系统 / 编辑器杂项 =====
 .DS_Store

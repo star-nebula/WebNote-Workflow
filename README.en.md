@@ -1,52 +1,123 @@
 # WebNote-Workflow · Web-to-Note Workflow
 
-> Turns "content collection → classify → distill → confirm publish" into **scheduler (main session) + three independent Agents**. Deterministic work is done by the scheduler itself (frame understanding is an optional AI enhancement); only what truly needs independent judgment goes to a subagent.
+> Turns "collect → classify → distill → verify → confirm" into **a scheduler (main session) + three independent agents**. Deterministic work stays with the scheduler; only what truly needs independent judgment goes to a subagent.
 
 [中文](README.md) · [English](#quick-start)
 
 ---
 
-## Quick Start: Two Paths
+## Quick Start
 
-The project's AI entry point is the **`skills/webnote-workflow` (orchestrator skill)** — the whole workflow (five steps + video frame capture + confirmation boundary) is packaged inside it. Pick either path:
+### First: you can use this with zero setup
 
-**Path A · Install (recommended)**: link or copy the `skills/` directory into your AI tool's project-level skills dir (e.g. `.workbuddy/skills/`, `.codex/skills/`, `.claude/skills/`). After that, natural conversation triggers it — just say "turn this webpage into a note" and the AI loads the webnote-workflow skill and follows the flow.
+The value of this project is the **workflow design and agent definitions**, not the Python scripts. The scripts are accelerators for the collection step — without them, you paste content in manually and the pipeline still runs end to end.
 
-**Path B · Fallback (no install needed)**: copy the short block below to your AI (WorkBuddy / Codex / Claude Code):
+| What you want to process | What you additionally need |
+|---|---|
+| Text / articles (you supply the content) | **Nothing.** Works right after clone |
+| PDF / Word documents | `pip install pypdf python-docx` |
+| Text inside images | `pip install rapidocr-onnxruntime` |
+| Video / audio speech | `pip install faster-whisper` + `ffmpeg` |
+| Image / video visual understanding | the above + `DEEPSEEK_API_KEY` |
 
+Not sure what your machine can do? Run the self-check (standard library only):
+
+```bash
+python tools/check-env.py
 ```
-You are using the "WebNote-Workflow" web-to-note pipeline, located at <current project dir>.
-First read skills/webnote-workflow/SKILL.md for orchestration and its two execution modes, then read Webpage note workflow.md for the five-step details (both inside the project).
-Follow them to process the web/local content I give next: do content-list confirmation and pre-flight checks (incl. DEEPSEEK_API_KEY, Cookie), ask me when unsure.
-Write outputs under runs/<date-topic>/; any delete/publish/memory-write action stays "pending confirmation".
-```
 
-> Layering: `webnote-workflow` is the **orchestrator skill** (multi-agent / single-dialog modes); the three content pipelines live in `skills/image-extract`, `skills/video-extract`, `skills/xhs-note`, loaded by content type during collection. Five-step details: [Webpage note workflow.md](Webpage%20note%20workflow.md).
+It prints what works, what's missing, and how to install it. **Missing capabilities only affect their media type** — no ffmpeg means no video, but the text pipeline works fine.
+
+### Three ways to use it
+
+**Path A · Install the skill** (recommended — set up once, triggers naturally)
+
+Copy the project's `skills/` directory into your AI tool's project-level skills dir:
+
+- WorkBuddy / Codex: `<project>/skills/` → `.workbuddy/skills/`、`.codex/skills/`
+- Claude Code: `<project>/skills/` → `.claude/skills/`
+- Tool doesn't support project skills → use Path B
+
+**Path B · One prompt** (no install, works with any AI)
+
+- Tools with subagent support (Claude Code / CodeBuddy / Cursor) → [`prompts/入口提示词-全自动.md`](prompts/入口提示词-全自动.md)
+- Plain chat UI (ChatGPT / Claude web) → [`prompts/入口提示词-单对话框.md`](prompts/入口提示词-单对话框.md)
+
+Copy the code block, replace the project path with yours, and send it along with your content.
+
+**Path C · Manual pipeline**
+
+Walk the five steps yourself, pointing the AI at the relevant definition file each time. To see what the output looks like first: [`examples/`](examples/).
+
+> Layering: `webnote-workflow` is the **orchestrator skill**; the three content pipelines live in `skills/image-extract`, `skills/video-extract`, `skills/xhs-note`, loaded by content type during collection. Five-step details: [Webpage note workflow.md](Webpage%20note%20workflow.md).
 
 ---
 
 ## Overview
 
-WebNote-Workflow is a **trust-first** pipeline for turning saved web content into reliable personal notes. It uses a hybrid architecture: deterministic tasks (media format classification, text extraction, confirmation) are handled by the scheduler itself, while only the tasks that truly need independent AI judgment are delegated to subagents. Note: text extraction is deterministic by default; **video frame understanding** (for tutorial/screen-record content) is an optional AI enhancement that requires a `DEEPSEEK_API_KEY`.
+WebNote-Workflow is a **trust-first** pipeline. Its goal is not to produce notes faster, but to turn web content into knowledge you can actually rely on.
 
 ```
 Scheduler (your AI tool)
-├── 1. Collection (scheduler itself — regex + CLI tools)
-├── 2. Classifier (subagent — semantic 4-way classification)
-├── 3. Distiller (subagent — extract key points)
-├── 4. Verifier (new subagent — compare notes against original)
-└── 5. Confirmation (scheduler itself — summarize proposal, all pending)
+├── 1. Collection      (scheduler itself — rules + CLI tools)
+├── 2. Classifier      (subagent — 4-way classification)
+├── 3. Distiller       (subagent — key points, each tagged with source type)
+├── 4. Verifier        (FRESH subagent — three-state verification)
+└── 5. Confirmation    (scheduler itself — proposal, all pending)
 ```
 
-Only **3 subagents** instead of 5 — the scheduler handles deterministic steps itself.
+Only **3 subagents**, not 5 — the scheduler handles the deterministic steps itself.
 
-### Execution modes (two; the AI picks by capability)
+### Agent definitions are files, not prose
 
-Full orchestration lives in [`skills/webnote-workflow/SKILL.md`](skills/webnote-workflow/SKILL.md). Highlights:
+Each agent lives in its own file under `agents/` at the project root, with a frontmatter contract (`context` / `reads` / `writes` / `forbidden`):
 
-1. **Mode A · Multi-agent (recommended when subagents are supported)**: scheduler runs collection + confirmation; spawns 3 independent subagents — Classifier, Distiller, and a **fresh-context** Verifier (never the distiller itself, so it cannot rubber-stamp its own writing).
-2. **Mode B · Single-dialog segmented (fallback)**: collection + classify + distill in one dialog, then **stop** — ask the user to run the verification in a **new dialog**, then confirm with the returned check sheet.
-3. (Optional) For video frame understanding, set `DEEPSEEK_API_KEY` and call `tools/extract-video-frames.py --input <video>`.
+```
+agents/            project-root, platform-neutral, single source of truth
+├── classifier.md  Classifier — 4-way classification
+├── distiller.md   Distiller  — key points + source-type tags
+└── verifier.md    Verifier   — three-state check (context: fresh)
+steps/             step cards (no contract), also at project root
+├── collect.md / collect-image.md / collect-video-audio.md / confirm.md
+```
+
+**Hand the definition file to the subagent. Don't paraphrase the role from memory** — paraphrasing drops the hard rules first, and those are exactly the parts that must not be dropped.
+
+`agents/` and `steps/` are **workflow assets** owned by the project root, not by any single skill. `skills/webnote-workflow/SKILL.md` is just a router that points to them via project-root-relative paths.
+
+**Registration shims (`.claude/agents/`)**: if you want role independence enforced by the *tool mechanism* rather than by prompt pleading, copy the matching shim from `.claude/agents/` into your tool's agent registry (e.g. WorkBuddy's `~/.workbuddy/agents/`, Claude Code's `.claude/agents/`). Each shim carries only a tool allow-list — the Verifier gets read-only tools plus write permission limited to its own `03-核查表.md`, so it *cannot* modify the notes. The role definition itself is never copied; it always points back to the single source of truth in `agents/`.
+
+### Execution modes
+
+1. **Mode A · Multi-agent** (recommended): scheduler runs collection + confirmation, spawns 3 independent subagents. The Verifier must be a **fresh context**, never the distiller — an agent cannot audit its own fabrication.
+2. **Mode B · Single-dialog** (fallback when subagents aren't available): run collection + classify + distill in one dialog, then **stop** — verification must happen in a **new dialog**. If that's impossible, make the AI write an explicit degradation notice (see `agents/verifier.md`); *an unmarked degradation is a compliant-looking table hiding a real risk*.
+
+### Why verification has three states, not two
+
+The Distiller tags every key point with a **source type**, and the Verifier judges evidence strength from it:
+
+| Source type | Meaning |
+|---|---|
+| `原文` / `original` | Text extracted by a tool or supplied by you |
+| `OCR` | Text recognized from an image / video frame |
+| `ASR` | Speech-to-text transcript |
+| `Vision` | A model's description of the picture |
+
+Hence three verification states:
+
+| State | Meaning | Safe to store permanently? |
+|---|---|---|
+| Verified (direct quote) | Found in original text, locatable | Yes |
+| Verified (transcribed source) | Found in OCR/ASR/Vision output, not traced back to the raw audio/video | **Review it yourself first** |
+| Suspicious / unsupported | No source found, or the note says more than the original | No |
+
+**Why two states fail**: in [`examples/`](examples/) there's a real case. A video note says "62.89 million views", sourced from frame OCR — but the OCR text actually misread "收藏/点赞" as "收款/点费". The numbers came from recognition noise.
+
+With only two states, the Verifier marks it "verified" and buries the caveat in a remarks section — the part you're most likely to skip. That number then enters your knowledge base looking confirmed.
+
+Three states marks it **verified (transcribed source)**, so you know to check the original footage. The note isn't wrong — one link in its evidence chain is model output. You deserve to know that, then decide whether it's worth verifying.
+
+**The entire point of this pipeline is to stop second- or third-hand transcription from masquerading as verified fact.**
 
 ### Confirmation boundary
 
